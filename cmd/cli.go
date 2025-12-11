@@ -1,9 +1,11 @@
 package cmd
 
 import (
-	"cli-aio/cmd/example"
+	"cli-aio/cmd/git"
 	"cli-aio/cmd/version"
+	"cli-aio/cmd/ztag"
 	"cli-aio/internal/prompt"
+	"fmt"
 	"os"
 
 	"github.com/urfave/cli/v2"
@@ -17,8 +19,10 @@ import (
 //  3. Import the package here and add it to the Commands slice
 func Execute() error {
 	commands := []*cli.Command{
-		example.Command(),
+		// example.Command(),
 		version.Command(),
+		ztag.Command(),
+		git.Command(),
 	}
 
 	app := &cli.App{
@@ -49,8 +53,14 @@ func Execute() error {
 			// and extracts command names from the commands slice
 			return prompt.SelectCommand(c, commands, "Select a command:", cli.ShowAppHelp)
 		},
+		ExitErrHandler: func(c *cli.Context, err error) {
+			if err == nil {
+				return
+			}
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		},
 	}
 
 	return app.Run(os.Args)
 }
-
