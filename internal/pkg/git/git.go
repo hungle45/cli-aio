@@ -75,21 +75,35 @@ func GetRemoteOriginURL() (string, error) {
 	return url, nil
 }
 
-// GetLatestTags gets the latest tags from the git repository.
+// GetLatestTags gets the latest tags from the remote git repository using creatordate order.
 func GetLatestTags(limit int) ([]string, error) {
-	// git tag --sort=version:refname | tail -n {limit}
-	cmd := exec.Command("git", "tag", "--sort=version:refname")
+	// git ls-remote --tags --refs --sort=-creatordate | head -n {limit}
+	cmd := exec.Command("git", "ls-remote", "--tags", "--refs", "--sort=-creatordate")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("error running git command to get latest tags: %w", err)
 	}
-	tags := strings.Split(strings.TrimSpace(string(output)), "\n")
 
-	if len(tags) == 0 || len(tags) == 1 && tags[0] == "" {
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var tags []string
+	for _, line := range lines {
+		parts := strings.Split(line, "\t")
+		if len(parts) == 2 {
+			ref := parts[1]
+			const prefix = "refs/tags/"
+			if strings.HasPrefix(ref, prefix) {
+				tag := strings.TrimPrefix(ref, prefix)
+				tags = append(tags, tag)
+			}
+		}
+	}
+
+	if len(tags) == 0 {
 		return []string{"v0.0.0"}, nil
 	}
+
 	if len(tags) > limit {
-		return tags[len(tags)-limit:], nil
+		return tags[:limit], nil
 	}
 	return tags, nil
 }
