@@ -134,6 +134,7 @@ func createGenerateTagCommand(env Env) *cli.Command {
 			if err != nil {
 				return err
 			}
+			fmt.Printf("Released %s successfully\n", nextTag)
 
 			return nil
 		},

@@ -37,4 +37,3 @@ func Command() *cli.Command {
 		},
 	}
 }
-

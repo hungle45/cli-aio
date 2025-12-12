@@ -105,9 +105,9 @@ func CreateAndPushTag(tag string, message string) error {
 }
 
 func CreateZalopayRelease(projectID string, tag string, message string) error {
-	gitlabToken := os.Getenv("GITLAB_TOKEN")
+	gitlabToken := os.Getenv("GITLAB_PRIVATE_TOKEN")
 	if gitlabToken == "" {
-		return fmt.Errorf("GITLAB_TOKEN is not set")
+		return fmt.Errorf("GITLAB_PRIVATE_TOKEN is not set")
 	}
 	_, err := exec.Command("curl", "--header", "Content-Type: application/json", "--header",
 		fmt.Sprintf("PRIVATE-TOKEN: %s", gitlabToken),
