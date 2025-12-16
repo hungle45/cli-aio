@@ -132,3 +132,117 @@ func CreateZalopayRelease(projectID string, tag string, message string) error {
 	}
 	return nil
 }
+
+// CheckoutBranch checks out to the specified branch.
+func CheckoutBranch(branch string) error {
+	cmd := exec.Command("git", "checkout", branch)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error checking out branch %s: %w\nOutput: %s", branch, err, string(output))
+	}
+	return nil
+}
+
+// PullBranch pulls the latest changes from remote for the current branch.
+func PullBranch() error {
+	cmd := exec.Command("git", "pull")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error pulling branch: %w\nOutput: %s", err, string(output))
+	}
+	return nil
+}
+
+// CheckMergeConflicts checks if merging sourceBranch into current branch would cause conflicts.
+// Returns true if there would be conflicts, false otherwise.
+// Uses a test merge approach: attempts merge with --no-commit and --no-ff, then aborts.
+func CheckMergeConflicts(sourceBranch string) (bool, error) {
+	// Ensure we clean up any merge state on exit
+	defer func() {
+		// Try to abort any ongoing merge
+		abortCmd := exec.Command("git", "merge", "--abort")
+		_ = abortCmd.Run() // Ignore errors, just try to clean up
+	}()
+
+	// First, check if branches are already merged
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", sourceBranch, "HEAD")
+	err := cmd.Run()
+	if err == nil {
+		// sourceBranch is already an ancestor of HEAD, so it's already merged
+		return false, nil
+	}
+
+	// Try to do a test merge with --no-commit to check for conflicts
+	// This will not actually commit the merge, allowing us to check for conflicts
+	cmd = exec.Command("git", "merge", "--no-commit", "--no-ff", sourceBranch)
+	output, err := cmd.CombinedOutput()
+	
+	// Check if merge was successful (no conflicts)
+	if err == nil {
+		// Merge succeeded, abort it since we're just testing
+		abortCmd := exec.Command("git", "merge", "--abort")
+		_ = abortCmd.Run() // Ignore abort errors
+		return false, nil
+	}
+	
+	// Merge failed, check if it's due to conflicts
+	outputStr := string(output)
+	hasConflicts := strings.Contains(outputStr, "CONFLICT") || 
+		strings.Contains(outputStr, "conflict") ||
+		strings.Contains(outputStr, "Automatic merge failed")
+	
+	if hasConflicts {
+		// Abort the merge attempt
+		abortCmd := exec.Command("git", "merge", "--abort")
+		_ = abortCmd.Run() // Ignore abort errors
+		return true, nil
+	}
+	
+	// Some other error occurred - abort and return error
+	abortCmd := exec.Command("git", "merge", "--abort")
+	_ = abortCmd.Run() // Try to clean up anyway
+	return false, fmt.Errorf("error checking merge conflicts: %w\nOutput: %s", err, outputStr)
+}
+
+// MergeBranch merges sourceBranch into the current branch.
+func MergeBranch(sourceBranch string, noFF bool) error {
+	args := []string{"merge", sourceBranch}
+	if noFF {
+		args = append(args, "--no-ff")
+	}
+	cmd := exec.Command("git", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error merging branch %s: %w\nOutput: %s", sourceBranch, err, string(output))
+	}
+	return nil
+}
+
+// FetchBranch fetches the specified branch from remote.
+func FetchBranch(branch string) error {
+	cmd := exec.Command("git", "fetch", "origin", branch)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error fetching branch %s: %w\nOutput: %s", branch, err, string(output))
+	}
+	return nil
+}
+
+// BranchExists checks if a branch exists (local or remote).
+func BranchExists(branch string) (bool, error) {
+	// Check local branches
+	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	
+	// Check remote branches
+	cmd = exec.Command("git", "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+branch)
+	err = cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	
+	return false, nil
+}
