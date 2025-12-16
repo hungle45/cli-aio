@@ -176,7 +176,7 @@ func CheckMergeConflicts(sourceBranch string) (bool, error) {
 	// This will not actually commit the merge, allowing us to check for conflicts
 	cmd = exec.Command("git", "merge", "--no-commit", "--no-ff", sourceBranch)
 	output, err := cmd.CombinedOutput()
-	
+
 	// Check if merge was successful (no conflicts)
 	if err == nil {
 		// Merge succeeded, abort it since we're just testing
@@ -184,20 +184,20 @@ func CheckMergeConflicts(sourceBranch string) (bool, error) {
 		_ = abortCmd.Run() // Ignore abort errors
 		return false, nil
 	}
-	
+
 	// Merge failed, check if it's due to conflicts
 	outputStr := string(output)
-	hasConflicts := strings.Contains(outputStr, "CONFLICT") || 
+	hasConflicts := strings.Contains(outputStr, "CONFLICT") ||
 		strings.Contains(outputStr, "conflict") ||
 		strings.Contains(outputStr, "Automatic merge failed")
-	
+
 	if hasConflicts {
 		// Abort the merge attempt
 		abortCmd := exec.Command("git", "merge", "--abort")
 		_ = abortCmd.Run() // Ignore abort errors
 		return true, nil
 	}
-	
+
 	// Some other error occurred - abort and return error
 	abortCmd := exec.Command("git", "merge", "--abort")
 	_ = abortCmd.Run() // Try to clean up anyway
@@ -236,14 +236,14 @@ func BranchExists(branch string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	
+
 	// Check remote branches
 	cmd = exec.Command("git", "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+branch)
 	err = cmd.Run()
 	if err == nil {
 		return true, nil
 	}
-	
+
 	return false, nil
 }
 
@@ -254,7 +254,7 @@ func GetLocalBranches() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting local branches: %w", err)
 	}
-	
+
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	var branches []string
 	for _, line := range lines {
@@ -263,6 +263,72 @@ func GetLocalBranches() ([]string, error) {
 			branches = append(branches, branch)
 		}
 	}
-	
+
 	return branches, nil
+}
+
+// GetRemoteBranches gets a list of all remote branch names (without remote prefix).
+func GetRemoteBranches() ([]string, error) {
+	cmd := exec.Command("git", "branch", "-r", "--format", "%(refname:short)")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("error getting remote branches: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var branches []string
+	seen := make(map[string]bool)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Remove remote prefix (e.g., "origin/branch-name" -> "branch-name")
+		parts := strings.Split(line, "/")
+		if len(parts) > 1 {
+			branch := strings.Join(parts[1:], "/")
+			// Skip HEAD reference
+			if branch != "HEAD" && !seen[branch] {
+				branches = append(branches, branch)
+				seen[branch] = true
+			}
+		}
+	}
+
+	return branches, nil
+}
+
+// GetAllAvailableBranches gets a combined list of local and remote branches.
+// Remote branches are only included if they don't exist locally.
+func GetAllAvailableBranches() ([]string, error) {
+	localBranches, err := GetLocalBranches()
+	if err != nil {
+		return nil, err
+	}
+
+	remoteBranches, err := GetRemoteBranches()
+	if err != nil {
+		// If we can't get remote branches, just return local ones
+		return localBranches, nil
+	}
+
+	// Create a map of local branches for quick lookup
+	localMap := make(map[string]bool)
+	for _, branch := range localBranches {
+		localMap[branch] = true
+	}
+
+	// Combine local branches with remote branches that don't exist locally
+	allBranches := make([]string, len(localBranches))
+	copy(allBranches, localBranches)
+
+	for _, remoteBranch := range remoteBranches {
+		if !localMap[remoteBranch] {
+			allBranches = append(allBranches, remoteBranch)
+		}
+	}
+
+	return allBranches, nil
 }

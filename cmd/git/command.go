@@ -5,6 +5,7 @@ import (
 	"cli-aio/internal/pkg/git"
 	"cli-aio/internal/prompt"
 	"fmt"
+	"os/exec"
 
 	"github.com/urfave/cli/v2"
 )
@@ -13,6 +14,7 @@ func Command() *cli.Command {
 	subcommands := []*cli.Command{
 		extractProjectFullName(),
 		reversedMergeBranch(),
+		checkoutList(),
 	}
 
 	return &cli.Command{
@@ -169,6 +171,82 @@ func reversedMergeBranch() *cli.Command {
 			fmt.Printf("✅ Successfully merged '%s' into '%s'\n", currentBranch, targetBranch)
 			fmt.Printf("Current branch: %s\n", targetBranch)
 
+			return nil
+		},
+	}
+}
+
+func checkoutList() *cli.Command {
+	return &cli.Command{
+		Name:  "ckl",
+		Usage: "Checkout list - list all available branches (local and remote) and checkout to selected one",
+		Action: func(c *cli.Context) error {
+			// Get current branch
+			currentBranch, err := git.GetCurrentBranch()
+			if err != nil {
+				return fmt.Errorf("failed to get current branch: %w", err)
+			}
+
+			// Get all available branches (local + remote branches not in local)
+			allBranches, err := git.GetAllAvailableBranches()
+			if err != nil {
+				return fmt.Errorf("failed to get branches: %w", err)
+			}
+
+			if len(allBranches) == 0 {
+				return fmt.Errorf("no branches available")
+			}
+
+			// Prompt user to select a branch
+			_, selected, err := prompt.Select("Select branch to checkout:", allBranches, currentBranch)
+			if err != nil {
+				return fmt.Errorf("failed to select branch: %w", err)
+			}
+
+			// Check if already on the selected branch
+			if selected == currentBranch {
+				fmt.Printf("Already on branch '%s'\n", currentBranch)
+				return nil
+			}
+
+			// Check if it's a remote branch (doesn't exist locally)
+			localBranches, err := git.GetLocalBranches()
+			if err != nil {
+				return fmt.Errorf("failed to check local branches: %w", err)
+			}
+
+			isLocal := false
+			for _, branch := range localBranches {
+				if branch == selected {
+					isLocal = true
+					break
+				}
+			}
+
+			// If it's a remote branch, create a local tracking branch
+			if !isLocal {
+				fmt.Printf("Branch '%s' is a remote branch. Creating local tracking branch...\n", selected)
+				// Fetch the remote branch first
+				if err := git.FetchBranch(selected); err != nil {
+					fmt.Printf("⚠️  Warning: Failed to fetch branch: %v\n", err)
+				}
+				// Checkout with tracking - use git command directly
+				cmd := exec.Command("git", "checkout", "-b", selected, "origin/"+selected)
+				output, err := cmd.CombinedOutput()
+				if err != nil {
+					return fmt.Errorf("failed to checkout remote branch: %w\nOutput: %s", err, string(output))
+				}
+				fmt.Printf("✅ Created and checked out to branch '%s' (tracking origin/%s)\n", selected, selected)
+				return nil
+			}
+
+			// It's a local branch, just checkout
+			fmt.Printf("Checking out to branch '%s'...\n", selected)
+			if err := git.CheckoutBranch(selected); err != nil {
+				return fmt.Errorf("failed to checkout branch: %w", err)
+			}
+
+			fmt.Printf("✅ Checked out to branch '%s'\n", selected)
 			return nil
 		},
 	}
