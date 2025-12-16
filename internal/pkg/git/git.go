@@ -246,3 +246,23 @@ func BranchExists(branch string) (bool, error) {
 	
 	return false, nil
 }
+
+// GetLocalBranches gets a list of all local branch names.
+func GetLocalBranches() ([]string, error) {
+	cmd := exec.Command("git", "branch", "--format", "%(refname:short)")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("error getting local branches: %w", err)
+	}
+	
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var branches []string
+	for _, line := range lines {
+		branch := strings.TrimSpace(line)
+		if branch != "" {
+			branches = append(branches, branch)
+		}
+	}
+	
+	return branches, nil
+}

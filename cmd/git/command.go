@@ -56,25 +56,73 @@ func reversedMergeBranch() *cli.Command {
 			// Get current branch (A)
 			currentBranch, err := git.GetCurrentBranch()
 			if err != nil {
-				return fmt.Errorf("failed to get current branch: %w", err)
+				return err
 			}
 			fmt.Printf("Current branch: %s\n", currentBranch)
 
-			// Get target branch (B) from args
-			if c.Args().Len() == 0 {
-				return fmt.Errorf("target branch is required")
+			// Get target branch (B) from args or prompt
+			var targetBranch string
+			if c.Args().Len() > 0 {
+				targetBranch = c.Args().First()
+			} else {
+				// Prompt user to select from local branches
+				localBranches, err := git.GetLocalBranches()
+				if err != nil {
+					return err
+				}
+
+				// Filter out current branch from the list
+				availableBranches := []string{}
+				for _, branch := range localBranches {
+					if branch != currentBranch {
+						availableBranches = append(availableBranches, branch)
+					}
+				}
+
+				if len(availableBranches) == 0 {
+					return fmt.Errorf("no other local branches available to merge into")
+				}
+
+				_, selected, err := prompt.Select("Select target branch:", availableBranches, "")
+				if err != nil {
+					return fmt.Errorf("failed to select branch: %w", err)
+				}
+				targetBranch = selected
 			}
-			targetBranch := c.Args().First()
-			fmt.Printf("Target branch: %s\n", targetBranch)
 
 			// Check if target branch exists
 			branchExists, err := git.BranchExists(targetBranch)
 			if err != nil {
-				return fmt.Errorf("failed to check if branch exists: %w", err)
+				return err
 			}
 			if !branchExists {
-				return fmt.Errorf("branch '%s' does not exist", targetBranch)
+				// Branch doesn't exist, prompt user to select from available branches
+				localBranches, err := git.GetLocalBranches()
+				if err != nil {
+					return fmt.Errorf("branch '%s' does not exist and failed to get local branches: %w", targetBranch, err)
+				}
+
+				// Filter out current branch from the list
+				availableBranches := []string{}
+				for _, branch := range localBranches {
+					if branch != currentBranch {
+						availableBranches = append(availableBranches, branch)
+					}
+				}
+
+				if len(availableBranches) == 0 {
+					return fmt.Errorf("branch '%s' does not exist and no other local branches available", targetBranch)
+				}
+
+				fmt.Printf("⚠️  Branch '%s' does not exist.\n", targetBranch)
+				_, selected, err := prompt.Select("Select target branch from available branches:", availableBranches, "")
+				if err != nil {
+					return fmt.Errorf("failed to select branch: %w", err)
+				}
+				targetBranch = selected
 			}
+
+			fmt.Printf("Target branch: %s\n", targetBranch)
 
 			// Check if we're already on the target branch
 			if currentBranch == targetBranch {
@@ -91,13 +139,13 @@ func reversedMergeBranch() *cli.Command {
 			// Checkout to target branch
 			fmt.Printf("Checking out to branch '%s'...\n", targetBranch)
 			if err := git.CheckoutBranch(targetBranch); err != nil {
-				return fmt.Errorf("failed to checkout branch: %w", err)
+				return err
 			}
 
 			// Pull latest changes
 			fmt.Printf("Pulling latest changes for '%s'...\n", targetBranch)
 			if err := git.PullBranch(); err != nil {
-				return fmt.Errorf("failed to pull branch: %w", err)
+				return err
 			}
 
 			// Check for merge conflicts before merging
@@ -108,9 +156,7 @@ func reversedMergeBranch() *cli.Command {
 			}
 
 			if hasConflicts {
-				fmt.Printf("❌ Merge conflicts detected! Cannot merge '%s' into '%s'\n", currentBranch, targetBranch)
-				fmt.Printf("Please resolve conflicts manually or use 'git merge %s' after resolving conflicts.\n", currentBranch)
-				return fmt.Errorf("merge conflicts detected")
+				return fmt.Errorf("❌ Merge conflicts detected! Cannot merge '%s' into '%s', please resolve conflicts manually", currentBranch, targetBranch)
 			}
 
 			// Merge current branch into target branch

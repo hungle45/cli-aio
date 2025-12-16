@@ -3,6 +3,7 @@ package prompt
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/urfave/cli/v2"
@@ -25,6 +26,12 @@ func IsInteractive(interactiveFlag bool) bool {
 // Returns the selected option index and value.
 // If defaultOption is empty, the first option will be used as default.
 func Select(message string, options []string, defaultOption string) (int, string, error) {
+	return SelectWithFuzzy(message, options, defaultOption, true)
+}
+
+// SelectWithFuzzy prompts the user to select from a list of options with optional fuzzy search.
+// If fuzzy is true, enables fuzzy search filtering.
+func SelectWithFuzzy(message string, options []string, defaultOption string, fuzzy bool) (int, string, error) {
 	if len(options) == 0 {
 		return -1, "", fmt.Errorf("no options to select from")
 	}
@@ -45,7 +52,14 @@ func Select(message string, options []string, defaultOption string) (int, string
 		}
 	}
 
-	err := survey.AskOne(prompt, &selected)
+	var err error
+	if fuzzy {
+		// Enable fuzzy search with a custom filter
+		err = survey.AskOne(prompt, &selected, survey.WithFilter(fuzzyFilter))
+	} else {
+		err = survey.AskOne(prompt, &selected)
+	}
+
 	if err != nil {
 		return -1, "", err
 	}
@@ -57,6 +71,27 @@ func Select(message string, options []string, defaultOption string) (int, string
 		}
 	}
 	return -1, selected, nil
+}
+
+// fuzzyFilter implements fuzzy matching for survey prompts.
+// It matches if all characters in the filter appear in order in the option.
+func fuzzyFilter(filter string, option string, index int) bool {
+	if filter == "" {
+		return true
+	}
+
+	filter = strings.ToLower(filter)
+	option = strings.ToLower(option)
+
+	// Simple fuzzy matching: all characters in filter must appear in order in option
+	filterIdx := 0
+	for i := 0; i < len(option) && filterIdx < len(filter); i++ {
+		if option[i] == filter[filterIdx] {
+			filterIdx++
+		}
+	}
+
+	return filterIdx == len(filter)
 }
 
 // Input prompts the user for text input.
