@@ -1,6 +1,7 @@
 package git
 
 import (
+	"cli-aio/internal/cmd"
 	"cli-aio/internal/pkg/git"
 	"cli-aio/internal/prompt"
 	"fmt"
@@ -19,6 +20,11 @@ func Command() *cli.Command {
 		Subcommands: subcommands,
 		Action: func(c *cli.Context) error {
 			if c.Args().Len() > 0 {
+				// Validate subcommand exists
+				if !cmd.ValidateSubcommand(c, subcommands) {
+					return fmt.Errorf("unknown subcommand: %s", c.Args().First())
+				}
+				// Valid subcommand, let cli handle it
 				return nil
 			}
 			return prompt.SelectCommand(c, subcommands, "Select a subcommand:", cli.ShowSubcommandHelp)
