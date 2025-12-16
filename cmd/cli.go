@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cli-aio/cmd/gencmd"
 	"cli-aio/cmd/git"
 	"cli-aio/cmd/version"
 	"cli-aio/cmd/ztag"
@@ -120,10 +121,10 @@ func showUnknownCommandWarning(c *cli.Context, commands []*cli.Command, isSubcom
 //  3. Import the package here and add it to the Commands slice
 func Execute() error {
 	commands := []*cli.Command{
-		// example.Command(),
 		version.Command(),
 		ztag.Command(),
 		git.Command(),
+		gencmd.Command(),
 	}
 
 	app := &cli.App{

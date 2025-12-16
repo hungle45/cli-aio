@@ -66,11 +66,12 @@ func Input(message string, defaultVal string, required bool) (string, error) {
 		Message: message,
 		Default: defaultVal,
 	}
-	validator := survey.Required
-	if !required {
-		validator = nil
+	var err error
+	if required {
+		err = survey.AskOne(prompt, &result, survey.WithValidator(survey.Required))
+	} else {
+		err = survey.AskOne(prompt, &result)
 	}
-	err := survey.AskOne(prompt, &result, survey.WithValidator(validator))
 	return result, err
 }
 
