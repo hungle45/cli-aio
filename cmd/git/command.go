@@ -87,7 +87,7 @@ func reversedMergeBranch() *cli.Command {
 
 				_, selected, err := prompt.Select("Select target branch:", availableBranches, "")
 				if err != nil {
-					return fmt.Errorf("failed to select branch: %w", err)
+					return fmt.Errorf("failed to select branch: %v", err)
 				}
 				targetBranch = selected
 			}
@@ -116,7 +116,7 @@ func reversedMergeBranch() *cli.Command {
 					return fmt.Errorf("branch '%s' does not exist and no other local branches available", targetBranch)
 				}
 
-				fmt.Printf("⚠️  Branch '%s' does not exist.\n", targetBranch)
+				fmt.Printf("[!] Branch '%s' does not exist.\n", targetBranch)
 				_, selected, err := prompt.Select("Select target branch from available branches:", availableBranches, "")
 				if err != nil {
 					return fmt.Errorf("failed to select branch: %w", err)
@@ -134,7 +134,7 @@ func reversedMergeBranch() *cli.Command {
 			// Fetch the target branch to make sure we have latest info
 			fmt.Printf("Fetching branch '%s'...\n", targetBranch)
 			if err := git.FetchBranch(targetBranch); err != nil {
-				fmt.Printf("⚠️  Warning: Failed to fetch branch: %v\n", err)
+				fmt.Printf("[!] Warning: Failed to fetch branch: %v\n", err)
 				// Continue anyway, might be a local branch
 			}
 
@@ -158,7 +158,7 @@ func reversedMergeBranch() *cli.Command {
 			}
 
 			if hasConflicts {
-				return fmt.Errorf("❌ Merge conflicts detected! Cannot merge '%s' into '%s', please resolve conflicts manually", currentBranch, targetBranch)
+				return fmt.Errorf("merge conflicts detected! Cannot merge '%s' into '%s', please resolve conflicts manually", currentBranch, targetBranch)
 			}
 
 			// Merge current branch into target branch
@@ -168,7 +168,7 @@ func reversedMergeBranch() *cli.Command {
 			}
 
 			// Show success result
-			fmt.Printf("✅ Successfully merged '%s' into '%s'\n", currentBranch, targetBranch)
+			fmt.Printf("[+] Successfully merged '%s' into '%s'\n", currentBranch, targetBranch)
 			fmt.Printf("Current branch: %s\n", targetBranch)
 
 			return nil
@@ -228,25 +228,25 @@ func checkoutList() *cli.Command {
 				fmt.Printf("Branch '%s' is a remote branch. Creating local tracking branch...\n", selected)
 				// Fetch the remote branch first
 				if err := git.FetchBranch(selected); err != nil {
-					fmt.Printf("⚠️  Warning: Failed to fetch branch: %v\n", err)
+					fmt.Printf("[-] Failed to fetch branch: %v\n", err)
 				}
-				// Checkout with tracking - use git command directly
+				// Checkout with tracking 	- use git command directly
 				cmd := exec.Command("git", "checkout", "-b", selected, "origin/"+selected)
 				output, err := cmd.CombinedOutput()
 				if err != nil {
-					return fmt.Errorf("failed to checkout remote branch: %w\nOutput: %s", err, string(output))
+					return fmt.Errorf("failed to checkout remote branch: %w\n%s", err, string(output))
 				}
-				fmt.Printf("✅ Created and checked out to branch '%s' (tracking origin/%s)\n", selected, selected)
+				fmt.Printf("[+] Created and checked out to branch '%s' (tracking origin/%s)\n", selected, selected)
 				return nil
 			}
 
 			// It's a local branch, just checkout
 			fmt.Printf("Checking out to branch '%s'...\n", selected)
 			if err := git.CheckoutBranch(selected); err != nil {
-				return fmt.Errorf("failed to checkout branch: %w", err)
+				return fmt.Errorf("failed to checkout branch: %v", err)
 			}
 
-			fmt.Printf("✅ Checked out to branch '%s'\n", selected)
+			fmt.Printf("[+] Checked out to branch '%s'\n", selected)
 			return nil
 		},
 	}

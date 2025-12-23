@@ -138,7 +138,7 @@ func CheckoutBranch(branch string) error {
 	cmd := exec.Command("git", "checkout", branch)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error checking out branch %s: %w\nOutput: %s", branch, err, string(output))
+		return fmt.Errorf("error checking out branch %s: %w\n%s", branch, err, string(output))
 	}
 	return nil
 }
@@ -148,7 +148,7 @@ func PullBranch() error {
 	cmd := exec.Command("git", "pull")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error pulling branch: %w\nOutput: %s", err, string(output))
+		return fmt.Errorf("error pulling branch: %w\n%s", err, string(output))
 	}
 	return nil
 }
@@ -201,7 +201,7 @@ func CheckMergeConflicts(sourceBranch string) (bool, error) {
 	// Some other error occurred - abort and return error
 	abortCmd := exec.Command("git", "merge", "--abort")
 	_ = abortCmd.Run() // Try to clean up anyway
-	return false, fmt.Errorf("error checking merge conflicts: %w\nOutput: %s", err, outputStr)
+	return false, fmt.Errorf("error checking merge conflicts: %w\n%s", err, outputStr)
 }
 
 // MergeBranch merges sourceBranch into the current branch.
@@ -213,7 +213,7 @@ func MergeBranch(sourceBranch string, noFF bool) error {
 	cmd := exec.Command("git", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error merging branch %s: %w\nOutput: %s", sourceBranch, err, string(output))
+		return fmt.Errorf("error merging branch %s: %w\n%s", sourceBranch, err, string(output))
 	}
 	return nil
 }
@@ -223,7 +223,7 @@ func FetchBranch(branch string) error {
 	cmd := exec.Command("git", "fetch", "origin", branch)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error fetching branch %s: %w\nOutput: %s", branch, err, string(output))
+		return fmt.Errorf("error fetching branch %s: %w\n%s", branch, err, string(output))
 	}
 	return nil
 }

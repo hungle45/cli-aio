@@ -71,14 +71,14 @@ func Command() *cli.Command {
 						}
 						// Validate subcommand name
 						if !isValidCommandName(subcmd) {
-							fmt.Printf("⚠️  Invalid subcommand name: %s (skipping)\n", subcmd)
+							fmt.Printf("[!] Invalid subcommand name: %s (skipping)\n", subcmd)
 							continue
 						}
 						// Check for duplicates
 						duplicate := false
 						for _, existing := range subcommands {
 							if existing == subcmd {
-								fmt.Printf("⚠️  Subcommand '%s' already added (skipping)\n", subcmd)
+								fmt.Printf("[!] Subcommand '%s' already added (skipping)\n", subcmd)
 								duplicate = true
 								break
 							}
@@ -87,7 +87,7 @@ func Command() *cli.Command {
 							continue
 						}
 						subcommands = append(subcommands, subcmd)
-						fmt.Printf("✅ Added subcommand: %s\n", subcmd)
+						fmt.Printf("[+] Added subcommand: %s\n", subcmd)
 					}
 				}
 			}
@@ -142,14 +142,14 @@ func generateCommand(cmdName string, subcommands []string, usage string) error {
 		return fmt.Errorf("failed to write command file: %w", err)
 	}
 
-	fmt.Printf("✅ Generated command '%s' at %s\n", cmdName, cmdDir)
+	fmt.Printf("[+] Generated command '%s' at %s\n", cmdName, cmdDir)
 
 	// Update cmd/cli.go to register the new command
 	if err := registerCommandInCLI(workspaceRoot, cmdName); err != nil {
-		fmt.Printf("⚠️  Warning: Failed to auto-register command in cmd/cli.go: %v\n", err)
+		fmt.Printf("[!] Warning: Failed to auto-register command in cmd/cli.go: %v\n", err)
 		fmt.Printf("   Please manually add: %s.Command() to the commands slice\n", cmdName)
 	} else {
-		fmt.Printf("✅ Auto-registered command in cmd/cli.go\n")
+		fmt.Printf("[+] Auto-registered command in cmd/cli.go\n")
 	}
 
 	return nil

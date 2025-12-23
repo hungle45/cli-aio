@@ -91,7 +91,7 @@ func showUnknownCommandWarning(c *cli.Context, commands []*cli.Command, isSubcom
 		actualIsSubcommand = false
 	}
 
-	fmt.Fprintf(os.Stderr, "⚠️  Warning: Unknown %s '%s'\n",
+	fmt.Fprintf(os.Stderr, "[!] Unknown %s '%s'\n",
 		map[bool]string{true: "subcommand", false: "command"}[actualIsSubcommand],
 		commandPath)
 
@@ -185,7 +185,7 @@ func Execute() error {
 			}
 
 			// For other errors, show the error message
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "[-] Error: %v\n", err)
 			os.Exit(1)
 		},
 	}

@@ -23,7 +23,7 @@ func ValidateSubcommand(c *cli.Context, subcommands []*cli.Command) bool {
 	}
 
 	// Unknown subcommand
-	fmt.Fprintf(os.Stderr, "⚠️  Warning: Unknown subcommand '%s'\n", subcmdName)
+	fmt.Fprintf(os.Stderr, "[!] Warning: Unknown subcommand '%s'\n", subcmdName)
 	fmt.Fprintf(os.Stderr, "\nAvailable subcommands:\n")
 	for _, subcmd := range subcommands {
 		fmt.Fprintf(os.Stderr, "  %s - %s\n", subcmd.Name, subcmd.Usage)
@@ -31,4 +31,3 @@ func ValidateSubcommand(c *cli.Context, subcommands []*cli.Command) bool {
 	fmt.Fprintf(os.Stderr, "\nUse 'cli-aio %s --help' for more information.\n", c.Command.Name)
 	return false
 }
-
