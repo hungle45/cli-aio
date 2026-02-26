@@ -73,6 +73,51 @@ func SelectWithFuzzy(message string, options []string, defaultOption string, fuz
 	return -1, selected, nil
 }
 
+// SelectOnTTY is like Select but forces all survey I/O through /dev/tty.
+// Use this when stdout is captured (e.g. inside $(...)) so that the
+// interactive UI is shown on the terminal instead of being swallowed.
+func SelectOnTTY(message string, options []string, defaultOption string) (int, string, error) {
+	if len(options) == 0 {
+		return -1, "", fmt.Errorf("no options to select from")
+	}
+
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		// Fallback to normal select if /dev/tty is unavailable
+		return Select(message, options, defaultOption)
+	}
+	defer tty.Close()
+
+	var selected string
+	p := &survey.Select{
+		Message: message,
+		Options: options,
+	}
+	if defaultOption != "" {
+		for _, opt := range options {
+			if opt == defaultOption {
+				p.Default = defaultOption
+				break
+			}
+		}
+	}
+
+	err = survey.AskOne(p, &selected,
+		survey.WithFilter(fuzzyFilter),
+		survey.WithStdio(tty, tty, tty),
+	)
+	if err != nil {
+		return -1, "", err
+	}
+
+	for i, opt := range options {
+		if opt == selected {
+			return i, selected, nil
+		}
+	}
+	return -1, selected, nil
+}
+
 // fuzzyFilter implements fuzzy matching for survey prompts.
 // It matches if all characters in the filter appear in order in the option.
 func fuzzyFilter(filter string, option string, index int) bool {

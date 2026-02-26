@@ -3,6 +3,7 @@ package cmd
 import (
 	"cli-aio/cmd/gencmd"
 	"cli-aio/cmd/git"
+	"cli-aio/cmd/prj"
 	"cli-aio/cmd/version"
 	"cli-aio/cmd/ztag"
 	"cli-aio/internal/prompt"
@@ -125,6 +126,7 @@ func Execute() error {
 		ztag.Command(),
 		git.Command(),
 		gencmd.Command(),
+		prj.Command(),
 	}
 
 	app := &cli.App{
