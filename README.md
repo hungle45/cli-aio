@@ -83,11 +83,12 @@ prj
 
 Fuzzy-search your project list and jump to it.
 
-### Add projects
+### Add and Refresh Projects
 
 ```sh
-aio prj add ~/path/to/project
-aio prj add-git ~/folder    # Scan folder for git repos
+aio prj add ~/path/to/project       # Add a single folder
+aio prj git-add ~/workspace         # Scan folder for git repos and save as root
+aio prj git-refresh                # Re-scan all saved roots for new repos
 ```
 
 ### Edit project list

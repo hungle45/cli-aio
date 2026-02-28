@@ -30,7 +30,8 @@ func Command() *cli.Command {
 	subcommands := []*cli.Command{
 		cdCmd(),
 		addCmd(),
-		addGitCmd(),
+		gitAddCmd(),
+		gitRefreshCmd(),
 		editConfigCmd(),
 		installCmd(),
 	}
@@ -68,12 +69,12 @@ func cdCmd() *cli.Command {
 				return fmt.Errorf("direct invocation not supported")
 			}
 
-			projects, err := project.Load()
+			store, err := project.Load()
 			if err != nil {
 				return err
 			}
-			if len(projects) == 0 {
-				fmt.Fprintln(os.Stderr, "[!] No projects saved. Use 'prj add' or 'prj add-git' to add projects.")
+			if len(store.Projects) == 0 {
+				fmt.Fprintln(os.Stderr, "[!] No projects saved. Use 'prj add' or 'prj git-add' to add projects.")
 				return nil
 			}
 
@@ -81,16 +82,16 @@ func cdCmd() *cli.Command {
 
 			// Find max name length for alignment
 			maxName := 0
-			for _, p := range projects {
+			for _, p := range store.Projects {
 				if len(p.Name) > maxName {
 					maxName = len(p.Name)
 				}
 			}
 
 			// Build pretty labels: "name (padded)  ~/short/path"
-			labels := make([]string, len(projects))
-			pathByLabel := make(map[string]string, len(projects))
-			for i, p := range projects {
+			labels := make([]string, len(store.Projects))
+			pathByLabel := make(map[string]string, len(store.Projects))
+			for i, p := range store.Projects {
 				shortPath := p.Path
 				if home != "" && strings.HasPrefix(p.Path, home) {
 					shortPath = "~" + p.Path[len(home):]
@@ -157,7 +158,7 @@ func addCmd() *cli.Command {
 				return fmt.Errorf("path is not a directory: %s", absPath)
 			}
 
-			projects, err := project.Load()
+			store, err := project.Load()
 			if err != nil {
 				return err
 			}
@@ -167,13 +168,13 @@ func addCmd() *cli.Command {
 				Path: absPath,
 			}
 
-			projects, added := project.Add(projects, p)
+			added := project.Add(store, p)
 			if !added {
 				fmt.Printf("[!] Project already exists: %s\n", absPath)
 				return nil
 			}
 
-			if err := project.Save(projects); err != nil {
+			if err := project.Save(store); err != nil {
 				return err
 			}
 
@@ -183,12 +184,14 @@ func addCmd() *cli.Command {
 	}
 }
 
-// addGitCmd scans a folder for git repositories and adds them all to the project list.
-func addGitCmd() *cli.Command {
+// gitAddCmd scans a folder for git repositories, adds them to the project list,
+// and saves the folder path as a git root for future refreshes.
+func gitAddCmd() *cli.Command {
 	return &cli.Command{
-		Name:      "add-git",
-		Usage:     "Scan a folder for git repos and add them to the project list",
+		Name:      "git-add",
+		Usage:     "Scan a folder for git repos, add them, and save the folder path for refreshing",
 		ArgsUsage: "[path]",
+		Aliases:   []string{"add-git"},
 		Action: func(c *cli.Context) error {
 			var folderPath string
 
@@ -225,39 +228,90 @@ func addGitCmd() *cli.Command {
 				return err
 			}
 
-			if len(repos) == 0 {
-				fmt.Println("[!] No git repositories found in", absPath)
-				return nil
-			}
-
-			projects, err := project.Load()
+			store, err := project.Load()
 			if err != nil {
 				return err
 			}
 
-			added := 0
-			skipped := 0
+			// Add the root itself to GitRoots
+			if addedRoot := project.AddGitRoot(store, absPath); addedRoot {
+				fmt.Printf("[+] Saved git root: %s\n", absPath)
+			}
+
+			addedProjects := 0
+			skippedProjects := 0
 			for _, repoPath := range repos {
 				p := project.Project{
 					Name: filepath.Base(repoPath),
 					Path: repoPath,
 				}
-				var wasAdded bool
-				projects, wasAdded = project.Add(projects, p)
-				if wasAdded {
-					added++
+				if wasAdded := project.Add(store, p); wasAdded {
+					addedProjects++
 					fmt.Printf("  [+] %s (%s)\n", p.Name, p.Path)
 				} else {
-					skipped++
+					skippedProjects++
 					fmt.Printf("  [-] already exists: %s\n", p.Path)
 				}
 			}
 
-			if err := project.Save(projects); err != nil {
+			if err := project.Save(store); err != nil {
 				return err
 			}
 
-			fmt.Printf("\nDone. Added: %d, Skipped (already exist): %d\n", added, skipped)
+			fmt.Printf("\nDone. Added: %d, Skipped: %d\n", addedProjects, skippedProjects)
+			return nil
+		},
+	}
+}
+
+// gitRefreshCmd re-scans all saved git roots for new repositories.
+func gitRefreshCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "git-refresh",
+		Usage: "Re-scan all saved git roots for new repositories",
+		Action: func(c *cli.Context) error {
+			store, err := project.Load()
+			if err != nil {
+				return err
+			}
+
+			if len(store.GitRoots) == 0 {
+				fmt.Println("[!] No git roots saved. Use 'prj git-add' to save a git root.")
+				return nil
+			}
+
+			totalAdded := 0
+			totalSkipped := 0
+
+			for _, root := range store.GitRoots {
+				fmt.Printf("Refreshing root: %s\n", root)
+				repos, err := project.FindGitRepos(root)
+				if err != nil {
+					fmt.Printf("  [!] Error scanning %s: %v\n", root, err)
+					continue
+				}
+
+				for _, repoPath := range repos {
+					p := project.Project{
+						Name: filepath.Base(repoPath),
+						Path: repoPath,
+					}
+					if wasAdded := project.Add(store, p); wasAdded {
+						totalAdded++
+						fmt.Printf("  [+] %s (%s)\n", p.Name, p.Path)
+					} else {
+						totalSkipped++
+					}
+				}
+			}
+
+			if totalAdded > 0 {
+				if err := project.Save(store); err != nil {
+					return err
+				}
+			}
+
+			fmt.Printf("\nDone. Total added: %d, Total already exist: %d\n", totalAdded, totalSkipped)
 			return nil
 		},
 	}
@@ -276,7 +330,7 @@ func editConfigCmd() *cli.Command {
 
 			// Ensure the file exists so the editor doesn't open a blank buffer
 			if _, err := os.Stat(configPath); os.IsNotExist(err) {
-				if err := project.Save([]project.Project{}); err != nil {
+				if err := project.Save(&project.Store{Projects: []project.Project{}, GitRoots: []string{}}); err != nil {
 					return fmt.Errorf("failed to initialise config file: %w", err)
 				}
 			}

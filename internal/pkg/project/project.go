@@ -14,6 +14,12 @@ type Project struct {
 	Path string `json:"path"` // absolute path
 }
 
+// Store holds the overall project state.
+type Store struct {
+	Projects []Project `json:"projects"`
+	GitRoots []string  `json:"git_roots"`
+}
+
 // ConfigPath returns the path to the projects config file.
 func ConfigPath() (string, error) {
 	home, err := os.UserHomeDir()
@@ -23,8 +29,8 @@ func ConfigPath() (string, error) {
 	return filepath.Join(home, ".config", "cli-aio", "projects.json"), nil
 }
 
-// Load reads all saved projects from disk.
-func Load() ([]Project, error) {
+// Load reads the store from disk.
+func Load() (*Store, error) {
 	path, err := ConfigPath()
 	if err != nil {
 		return nil, err
@@ -32,7 +38,10 @@ func Load() ([]Project, error) {
 
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return []Project{}, nil
+		return &Store{
+			Projects: []Project{},
+			GitRoots: []string{},
+		}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read projects file: %w", err)
@@ -40,18 +49,40 @@ func Load() ([]Project, error) {
 
 	// Treat an empty file the same as an absent one
 	if len(bytes.TrimSpace(data)) == 0 {
-		return []Project{}, nil
+		return &Store{
+			Projects: []Project{},
+			GitRoots: []string{},
+		}, nil
 	}
 
+	// Try parsing as the new Store format
+	var store Store
+	if err := json.Unmarshal(data, &store); err == nil && (len(store.Projects) > 0 || len(store.GitRoots) > 0) {
+		// New format successfully parsed (and not just an empty object)
+		if store.Projects == nil {
+			store.Projects = []Project{}
+		}
+		if store.GitRoots == nil {
+			store.GitRoots = []string{}
+		}
+		return &store, nil
+	}
+
+	// Fallback: parse as the old []Project format
 	var projects []Project
 	if err := json.Unmarshal(data, &projects); err != nil {
 		return nil, fmt.Errorf("failed to parse projects file: %w", err)
 	}
-	return projects, nil
+
+	// Return a new Store containing the old projects
+	return &Store{
+		Projects: projects,
+		GitRoots: []string{},
+	}, nil
 }
 
-// Save writes the project list to disk.
-func Save(projects []Project) error {
+// Save writes the store to disk.
+func Save(store *Store) error {
 	path, err := ConfigPath()
 	if err != nil {
 		return err
@@ -61,9 +92,9 @@ func Save(projects []Project) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	data, err := json.MarshalIndent(projects, "", "  ")
+	data, err := json.MarshalIndent(store, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal projects: %w", err)
+		return fmt.Errorf("failed to marshal store: %w", err)
 	}
 
 	if err := os.WriteFile(path, data, 0644); err != nil {
@@ -72,15 +103,28 @@ func Save(projects []Project) error {
 	return nil
 }
 
-// Add appends a project to the list if it doesn't already exist (by path).
+// Add appends a project to the project list if it doesn't already exist (by path).
 // Returns true if the project was newly added, false if it already existed.
-func Add(projects []Project, p Project) ([]Project, bool) {
-	for _, existing := range projects {
+func Add(store *Store, p Project) bool {
+	for _, existing := range store.Projects {
 		if existing.Path == p.Path {
-			return projects, false
+			return false
 		}
 	}
-	return append(projects, p), true
+	store.Projects = append(store.Projects, p)
+	return true
+}
+
+// AddGitRoot appends a git root to the list if it doesn't already exist.
+// Returns true if the root was newly added, false if it already existed.
+func AddGitRoot(store *Store, gitRoot string) bool {
+	for _, existing := range store.GitRoots {
+		if existing == gitRoot {
+			return false
+		}
+	}
+	store.GitRoots = append(store.GitRoots, gitRoot)
+	return true
 }
 
 // FindGitRepos recursively walks root and returns every directory that
